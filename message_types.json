@@ -20,21 +20,24 @@
       {
         "name": "HIS消息推送",
         "id": 81,
-        "table_suffix": "81"
+        "table_suffix": "81",
+        "use_category": true
       },
       {
         "name": "TJ001_V3生成",
         "id": 82,
         "table_suffix": "82",
         "response_var": "tempPOOR_IN200901UV",
-        "response_content_type": 10
+        "response_content_type": 10,
+        "use_category": true
       },
       {
         "name": "V3推送PACS",
         "id": 338,
         "table_suffix": "338",
         "response_var": "resp",
-        "response_content_type": 11
+        "response_content_type": 11,
+        "use_category": false
       }
     ],
     "his_precheck": {

@@ -379,6 +379,7 @@ class MirthTestApp:
             self._set_status(f"[{step}/{total_steps}] 查询通道: {ch_name}...")
             resp_var = ch.get("response_var")
             resp_ct = ch.get("response_content_type")
+            ch_category = category if ch.get("use_category", False) else ""
             self._logger.info("查询通道: %s (ID=%d)", ch_name, ch_id)
 
             result = {
@@ -394,12 +395,12 @@ class MirthTestApp:
                 "resp_ct": resp_ct,
                 "keyword": keyword,
                 "time_str": time_str,
-                "category": category,
+                "category": ch_category,
             }
 
             # 查询输入 XML (content_type = 1)
             try:
-                sql = queries.sql_messages(ch_id, keyword, time_str, category)
+                sql = queries.sql_messages(ch_id, keyword, time_str, ch_category)
                 rows = db.execute_query(sql)
                 if rows:
                     result["all_rows"] = rows
@@ -415,7 +416,7 @@ class MirthTestApp:
 
             # 查询错误 (content_type = 9)
             try:
-                err_sql = queries.sql_error(ch_id, keyword, category)
+                err_sql = queries.sql_error(ch_id, keyword, ch_category)
                 err_rows = db.execute_query(err_sql)
                 if err_rows:
                     result["error_detail"] = err_rows[0].get("error_detail", "")

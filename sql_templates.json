@@ -1,11 +1,11 @@
 {
   "messages": {
     "description": "查询原始消息列表",
-    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE m.RECEIVED_DATE > '{time}' AND mc.content LIKE '%{keyword}%' AND mc.content_type = 1 ORDER BY m.id DESC"
+    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE m.RECEIVED_DATE > '{time}' AND mc.content LIKE '%{keyword}%' AND mc.content LIKE '%{category}%' AND mc.content_type = 1 ORDER BY m.id DESC"
   },
   "messages_with_response": {
     "description": "查询原始消息列表（带响应报文）",
-    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content, (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(var_mc.content, '{response_var}</string>', -1), '</string>', 1), '<string>', ''), '&lt;', '<'), '&gt;', '>'), '&quot;', '\"'), '&apos;', \"'\") FROM mirth_data.d_mc{channel_id} var_mc WHERE var_mc.message_id = m.id AND var_mc.content_type = {response_content_type} LIMIT 1) AS response_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE mc.content_type = 1 AND mc.content LIKE '%{keyword}%' AND m.RECEIVED_DATE > '{time}' ORDER BY m.id DESC"
+    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content, (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(var_mc.content, '{response_var}</string>', -1), '</string>', 1), '<string>', ''), '&lt;', '<'), '&gt;', '>'), '&quot;', '\"'), '&apos;', \"'\") FROM mirth_data.d_mc{channel_id} var_mc WHERE var_mc.message_id = m.id AND var_mc.content_type = {response_content_type} LIMIT 1) AS response_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE mc.content_type = 1 AND mc.content LIKE '%{keyword}%' AND mc.content LIKE '%{category}%' AND m.RECEIVED_DATE > '{time}' ORDER BY m.id DESC"
   },
   "status": {
     "description": "查询消息在各 connector 的状态",

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+build/
+dist/
+dist.zip
+buildenv/
+*.spec
+.claude/
+config.ini
+*.egg-info/
+python-skills/

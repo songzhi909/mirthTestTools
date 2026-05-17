@@ -1,0 +1,65 @@
+{
+  "检查申请新增": {
+    "code": "TJ001",
+    "query_fields": [
+      {
+        "label": "检查申请号",
+        "xml_tag": "EXAM_NO",
+        "required": true
+      }
+    ],
+    "extract_fields": [
+      {"label": "事件类型", "xpath": "EventType"},
+      {"label": "系统名称", "xpath": "SystemName"},
+      {"label": "操作类型", "xpath": "ListInfo/ActionType"},
+      {"label": "检查申请号", "xpath": "ListInfo/ListRow/EXAM_ITEMS/PriKeyList/EXAM_NO"},
+      {"label": "检查项目序号", "xpath": "ListInfo/ListRow/EXAM_ITEMS/PriKeyList/EXAM_ITEM_NO"},
+      {"label": "检查类别", "xpath": "ListInfo/ListRow/EXAM_APPOINTS/PriKeyList/EXAM_CLASS"}
+    ],
+    "channels": [
+      {
+        "name": "HIS消息推送",
+        "id": 81,
+        "table_suffix": "81"
+      },
+      {
+        "name": "TJ001_V3生成",
+        "id": 82,
+        "table_suffix": "82",
+        "response_var": "tempPOOR_IN200901UV",
+        "response_content_type": 10
+      },
+      {
+        "name": "V3推送PACS",
+        "id": 338,
+        "table_suffix": "338",
+        "response_var": "resp",
+        "response_content_type": 11
+      }
+    ]
+  },
+  "检验申请": {
+    "code": "JY001",
+    "query_fields": [
+      {
+        "label": "检验申请号",
+        "xml_tag": "ORDER_NO",
+        "required": true
+      }
+    ],
+    "extract_fields": [],
+    "channels": []
+  },
+  "处置申请": {
+    "code": "CZ001",
+    "query_fields": [
+      {
+        "label": "处置申请号",
+        "xml_tag": "ORDER_NO",
+        "required": true
+      }
+    ],
+    "extract_fields": [],
+    "channels": []
+  }
+}

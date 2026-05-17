@@ -1,0 +1,26 @@
+{
+  "messages": {
+    "description": "查询原始消息列表",
+    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE m.RECEIVED_DATE > '{time}' AND mc.content LIKE '%{keyword}%' AND mc.content_type = 1 ORDER BY m.id DESC"
+  },
+  "messages_with_response": {
+    "description": "查询原始消息列表（带响应报文）",
+    "sql": "SELECT m.id AS message_id, m.RECEIVED_DATE AS received_date, mc.content AS raw_content, (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(var_mc.content, '{response_var}</string>', -1), '</string>', 1), '<string>', ''), '&lt;', '<'), '&gt;', '>'), '&quot;', '\"'), '&apos;', \"'\") FROM mirth_data.d_mc{channel_id} var_mc WHERE var_mc.message_id = m.id AND var_mc.content_type = {response_content_type} LIMIT 1) AS response_content FROM mirth_data.d_mc{channel_id} mc JOIN mirth_data.d_m{channel_id} m ON mc.message_id = m.id WHERE mc.content_type = 1 AND mc.content LIKE '%{keyword}%' AND m.RECEIVED_DATE > '{time}' ORDER BY m.id DESC"
+  },
+  "status": {
+    "description": "查询消息在各 connector 的状态",
+    "sql": "SELECT mm.MESSAGE_ID AS message_id, mm.RECEIVED_DATE AS received_date, mm.CONNECTOR_NAME AS connector_name, mm.STATUS AS status, mm.SEND_ATTEMPTS AS send_attempts FROM mirth_data.d_mm{channel_id} mm JOIN mirth_data.d_mc{channel_id} mc ON mm.MESSAGE_ID = mc.message_id WHERE mm.RECEIVED_DATE > '{time}' AND mc.content_type = 1 AND mc.content LIKE '%{keyword}%' ORDER BY mm.MESSAGE_ID DESC"
+  },
+  "error": {
+    "description": "查询错误堆栈 (content_type = 9)",
+    "sql": "SELECT mc.message_id, mc.content AS error_detail FROM mirth_data.d_mc{channel_id} mc WHERE mc.message_id IN (SELECT message_id FROM mirth_data.d_mc{channel_id} WHERE content LIKE '%{keyword}%') AND mc.content_type = 9"
+  },
+  "response": {
+    "description": "查询响应报文或 channel 变量",
+    "sql": "SELECT message_id, REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(content, '{var_name}</string>', -1), '</string>', 1), '<string>', ''), '&lt;', '<'), '&gt;', '>'), '&quot;', '\"'), '&apos;', \"'\") AS var_value FROM mirth_data.d_mc{channel_id} WHERE message_id = '{message_id}' AND content_type = {content_type}"
+  },
+  "variables": {
+    "description": "查询 channel 变量原始内容 (content_type = 10)",
+    "sql": "SELECT content FROM mirth_data.d_mc{channel_id} WHERE message_id = '{message_id}' AND content_type = 10"
+  }
+}

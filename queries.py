@@ -25,23 +25,25 @@ def _render(template_key: str, **kwargs) -> str:
     return sql.format(**kwargs)
 
 
-def sql_messages(channel_id: int, keyword: str, time_str: str) -> str:
-    return _render("messages", channel_id=channel_id, keyword=keyword, time=time_str)
+def sql_messages(channel_id: int, keyword: str, time_str: str, category: str = "") -> str:
+    return _render("messages", channel_id=channel_id, keyword=keyword, time=time_str, category=category)
 
 
 def sql_messages_with_response(channel_id: int, keyword: str, time_str: str,
-                                response_var: str, response_content_type: int) -> str:
+                                response_var: str, response_content_type: int,
+                                category: str = "") -> str:
     return _render("messages_with_response",
                     channel_id=channel_id, keyword=keyword, time=time_str,
-                    response_var=response_var, response_content_type=response_content_type)
+                    response_var=response_var, response_content_type=response_content_type,
+                    category=category)
 
 
-def sql_status(channel_id: int, keyword: str, time_str: str) -> str:
-    return _render("status", channel_id=channel_id, keyword=keyword, time=time_str)
+def sql_status(channel_id: int, keyword: str, time_str: str, category: str = "") -> str:
+    return _render("status", channel_id=channel_id, keyword=keyword, time=time_str, category=category)
 
 
-def sql_error(channel_id: int, keyword: str) -> str:
-    return _render("error", channel_id=channel_id, keyword=keyword)
+def sql_error(channel_id: int, keyword: str, category: str = "") -> str:
+    return _render("error", channel_id=channel_id, keyword=keyword, category=category)
 
 
 def sql_response(channel_id: int, message_id: str, var_name: str, content_type: int) -> str:

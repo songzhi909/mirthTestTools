@@ -14,6 +14,11 @@ import logger
 import queries
 import xml_parser
 
+try:
+    import oracle_db
+except ImportError:
+    oracle_db = None
+
 
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -153,6 +158,10 @@ class MirthTestApp:
         self.query_entries: Dict[str, ttk.Entry] = {}
         self._build_query_fields()
 
+        ttk.Label(frame, text="类别:", font=("微软雅黑", 10)).pack(side=tk.LEFT, padx=(16, 0))
+        self.category_var = tk.StringVar()
+        ttk.Entry(frame, textvariable=self.category_var, width=10).pack(side=tk.LEFT, padx=(4, 16))
+
         ttk.Label(frame, text="时间:", font=("微软雅黑", 10)).pack(side=tk.LEFT, padx=(16, 0))
         self.time_var = tk.StringVar(value="最近24小时")
         ttk.Combobox(frame, textvariable=self.time_var,
@@ -237,12 +246,11 @@ class MirthTestApp:
         self.tab_error = scrolledtext.ScrolledText(self.detail_notebook, wrap=tk.WORD, font=("Consolas", 9))
         self.detail_notebook.add(self.tab_error, text="错误")
 
-        self.tab_log = scrolledtext.ScrolledText(self.detail_notebook, wrap=tk.WORD, font=("Consolas", 9),
-                                                  state="disabled")
-        self.detail_notebook.add(self.tab_log, text="日志")
+        self.tab_his = scrolledtext.ScrolledText(self.detail_notebook, wrap=tk.WORD, font=("Consolas", 9))
+        self.detail_notebook.add(self.tab_his, text="HIS预检")
 
-        # 初始化日志
-        self._logger = logger.setup_logger(self.tab_log)
+        # 初始化日志（仅写文件，不显示 tab）
+        self._logger = logger.setup_logger(None)
         self._logger.info("程序启动")
 
     def _build_statusbar(self):
@@ -256,6 +264,11 @@ class MirthTestApp:
         self._build_query_fields()
         self._rebuild_flow_panels()
         self._clear_detail()
+        type_name = self.type_var.get()
+        mt = self.msg_types.get(type_name, {})
+        if not mt.get("his_precheck"):
+            self.tab_his.delete("1.0", tk.END)
+            self.tab_his.insert(tk.END, "该消息类型未配置HIS预检")
 
     def _on_query(self):
         type_name = self.type_var.get()
@@ -291,8 +304,9 @@ class MirthTestApp:
         for panel in self.flow_panels.values():
             panel.update_status(False, False, "loading")
 
+        category = self.category_var.get().strip()
         self._set_status("查询中...")
-        threading.Thread(target=self._do_query_all, args=(channels, keyword), daemon=True).start()
+        threading.Thread(target=self._do_query_all, args=(channels, keyword, category), daemon=True).start()
 
     def _on_panel_click(self, channel_name: str):
         result = self._current_results.get(channel_name)
@@ -300,17 +314,69 @@ class MirthTestApp:
             self._clear_detail()
             return
 
-        self._show_detail(result)
+        self._show_detail(result, channel_name)
 
     # ── 查询逻辑 ──────────────────────────────────────────────
 
-    def _do_query_all(self, channels: list, keyword: str):
+    def _do_query_all(self, channels: list, keyword: str, category: str = ""):
         time_str = self._get_time_str()
         self._logger.info("查询时间范围: %s", time_str)
 
+        type_name = self.type_var.get()
+        mt = self.msg_types.get(type_name, {})
+        his_config = mt.get("his_precheck")
+        has_precheck = bool(his_config and oracle_db)
+        total_steps = (1 if has_precheck else 0) + len(channels)
+        step = 0
+
+        # HIS 预检
+        if has_precheck:
+            step += 1
+            self._set_status(f"[{step}/{total_steps}] HIS预检查询中...")
+            self._logger.info("开始HIS预检查询...")
+            try:
+                his_sql = his_config["sql"].format(keyword=keyword)
+                his_rows = oracle_db.execute_query(his_sql)
+                his_result = {
+                    "rows": his_rows,
+                    "fields": his_config.get("fields", []),
+                    "description": his_config.get("description", "HIS预检"),
+                    "error": None,
+                }
+                self._current_results["_his_precheck"] = his_result
+                self.root.after(0, self._update_his_tab, his_result)
+                self._logger.info("HIS预检完成，返回 %d 条记录", len(his_rows))
+
+                if not his_rows:
+                    self._logger.warning("HIS预检: 未查到记录")
+                    self.root.after(0, lambda: messagebox.showwarning("HIS预检", "HIS中未查到该申请单数据"))
+                    self._set_status("HIS预检: 无数据")
+                    return
+
+                status_field = his_config.get("status_field", "status")
+                fail_msg_field = his_config.get("fail_message_field", "status_name")
+                if his_rows and str(his_rows[0].get(status_field, "1")) == "0":
+                    fail_msg = his_rows[0].get(fail_msg_field, "HIS预检不通过")
+                    self._logger.warning("HIS预检不通过: %s", fail_msg)
+                    self.root.after(0, lambda m=fail_msg: messagebox.showwarning("HIS预检", m))
+                    self._set_status("HIS预检不通过")
+                    return
+            except Exception as e:
+                self._logger.error("HIS预检失败: %s", e)
+                his_result = {"rows": [], "fields": [], "error": str(e)}
+                self._current_results["_his_precheck"] = his_result
+                self.root.after(0, self._update_his_tab, his_result)
+                self.root.after(0, lambda m=str(e): messagebox.showwarning("HIS预检", f"HIS预检查询失败:\n{m}"))
+                self._set_status("HIS预检失败")
+                return
+        elif his_config and not oracle_db:
+            self._logger.warning("未安装 oracledb 模块，跳过HIS预检")
+
         for i, ch in enumerate(channels):
+            step += 1
             ch_id = ch["id"]
             ch_name = ch["name"]
+            self._set_status(f"[{step}/{total_steps}] 查询通道: {ch_name}...")
             resp_var = ch.get("response_var")
             resp_ct = ch.get("response_content_type")
             self._logger.info("查询通道: %s (ID=%d)", ch_name, ch_id)
@@ -318,22 +384,25 @@ class MirthTestApp:
             result = {
                 "channel_name": ch_name,
                 "channel_id": ch_id,
-                "input_xml": "",
-                "output_xml": "",
-                "variables": "",
-                "response": "",
-                "error": "",
+                "all_rows": [],
+                "current_index": 0,
                 "has_input": False,
                 "has_output": False,
                 "status": "empty",
+                "next_ch_id": channels[i + 1]["id"] if i + 1 < len(channels) else None,
+                "resp_var": resp_var,
+                "resp_ct": resp_ct,
+                "keyword": keyword,
+                "time_str": time_str,
+                "category": category,
             }
 
             # 查询输入 XML (content_type = 1)
             try:
-                sql = queries.sql_messages(ch_id, keyword, time_str)
+                sql = queries.sql_messages(ch_id, keyword, time_str, category)
                 rows = db.execute_query(sql)
                 if rows:
-                    result["input_xml"] = rows[0].get("raw_content", "")
+                    result["all_rows"] = rows
                     result["has_input"] = True
                     result["status"] = "success"
                     self._logger.info("通道 %s: 查询到 %d 条输入消息", ch_name, len(rows))
@@ -344,55 +413,12 @@ class MirthTestApp:
                 result["status"] = "error"
                 self._logger.error("通道 %s 查询输入失败: %s", ch_name, e)
 
-            # 查询输出 XML（下一环节的输入或本环节响应）
-            if result["has_input"]:
-                try:
-                    if i + 1 < len(channels):
-                        next_ch = channels[i + 1]
-                        next_sql = queries.sql_messages(next_ch["id"], keyword, time_str)
-                        next_rows = db.execute_query(next_sql)
-                        if next_rows:
-                            result["output_xml"] = next_rows[0].get("raw_content", "")
-                            result["has_output"] = True
-                    elif resp_var and resp_ct:
-                        msg_id = str(rows[0].get("message_id", ""))
-                        resp_sql = queries.sql_response(ch_id, msg_id, resp_var, resp_ct)
-                        resp_rows = db.execute_query(resp_sql)
-                        if resp_rows:
-                            result["output_xml"] = resp_rows[0].get("var_value", "")
-                            result["has_output"] = True
-                except Exception as e:
-                    result["error"] += f"\n查询输出失败: {e}"
-
-            # 查询变量 (content_type = 10)
-            if result["has_input"]:
-                try:
-                    msg_id = str(rows[0].get("message_id", ""))
-                    vars_sql = queries.sql_variables(ch_id, msg_id)
-                    vars_rows = db.execute_query(vars_sql)
-                    if vars_rows:
-                        result["variables"] = vars_rows[0].get("content", "")
-                except Exception:
-                    pass
-
-            # 查询响应 (content_type = 11 或 response_var)
-            if result["has_input"] and resp_var:
-                try:
-                    msg_id = str(rows[0].get("message_id", ""))
-                    actual_ct = resp_ct if resp_ct else 11
-                    resp_sql = queries.sql_response(ch_id, msg_id, resp_var, actual_ct)
-                    resp_rows = db.execute_query(resp_sql)
-                    if resp_rows:
-                        result["response"] = resp_rows[0].get("var_value", "")
-                except Exception:
-                    pass
-
             # 查询错误 (content_type = 9)
             try:
-                err_sql = queries.sql_error(ch_id, keyword)
+                err_sql = queries.sql_error(ch_id, keyword, category)
                 err_rows = db.execute_query(err_sql)
                 if err_rows:
-                    result["error"] = err_rows[0].get("error_detail", "")
+                    result["error_detail"] = err_rows[0].get("error_detail", "")
                     result["status"] = "error"
             except Exception:
                 pass
@@ -412,43 +438,179 @@ class MirthTestApp:
     def _update_panel(self, ch_name: str, result: dict):
         panel = self.flow_panels.get(ch_name)
         if panel:
+            count = len(result.get("all_rows", []))
             panel.update_status(result["has_input"], result["has_output"], result["status"])
+            if count > 0:
+                panel.input_label.configure(text=f"输入: {count}条")
 
-    def _show_detail(self, result: dict):
-        # 字段解析
+    def _update_his_tab(self, his_result: dict):
+        self.tab_his.delete("1.0", tk.END)
+
+        if his_result.get("error"):
+            self.tab_his.insert(tk.END, f"HIS预检查询失败:\n{his_result['error']}\n\n")
+            self.tab_his.insert(tk.END, "提示: 请检查 config.ini 中 [oracle] 配置是否正确\n")
+            return
+
+        rows = his_result.get("rows", [])
+        fields = his_result.get("fields", [])
+
+        if not rows:
+            self.tab_his.insert(tk.END, "HIS预检: 未查到记录\n")
+            return
+
+        for i, row in enumerate(rows):
+            if i > 0:
+                self.tab_his.insert(tk.END, "\n" + "─" * 50 + "\n\n")
+            self.tab_his.insert(tk.END, f"记录 {i + 1}:\n")
+            for field in fields:
+                key = field["key"]
+                label = field["label"]
+                value = row.get(key, "")
+                if value is None:
+                    value = ""
+                self.tab_his.insert(tk.END, f"  {label:<12} : {value}\n")
+
+    def _show_detail(self, result: dict, channel_name: str = ""):
+        all_rows = result.get("all_rows", [])
+        ch_id = result.get("channel_id", 0)
+        error_detail = result.get("error_detail", "")
+
+        self.detail_frame.configure(text=f" 详情 - {result.get('channel_name', channel_name)} ")
+
+        if not all_rows:
+            self._clear_detail()
+            self.tab_fields.insert(tk.END, "(无输入报文)")
+            if error_detail:
+                self.tab_error.insert(tk.END, error_detail)
+            return
+
+        # 默认显示第一条消息
+        self._show_message_detail(result, 0)
+
+    def _show_message_detail(self, result: dict, index: int):
+        all_rows = result.get("all_rows", [])
+        ch_id = result.get("channel_id", 0)
+        error_detail = result.get("error_detail", "")
+        result["current_index"] = index
+
         type_name = self.type_var.get()
         mt = self.msg_types.get(type_name, {})
         extract_fields = mt.get("extract_fields", [])
-        input_xml = result.get("input_xml", "")
+        row = all_rows[index]
+        input_xml = row.get("raw_content", "")
+        msg_id = str(row.get("message_id", ""))
 
+        # 字段解析 tab：顶部消息列表 + 下方字段解析
         self.tab_fields.delete("1.0", tk.END)
+        if len(all_rows) > 1:
+            self.tab_fields.insert(tk.END, f"共 {len(all_rows)} 条消息，点击切换:\n")
+            self.tab_fields.insert(tk.END, "─" * 60 + "\n")
+            list_start = self.tab_fields.index("end-1c")
+            for i, r in enumerate(all_rows):
+                date_str = str(r.get("received_date", ""))
+                mid = r.get("message_id", "")
+                marker = "▶" if i == index else " "
+                self.tab_fields.insert(tk.END, f"{marker} [{i + 1}] {date_str}  ID={mid}\n")
+            list_end = self.tab_fields.index("end-1c")
+            self.tab_fields.insert(tk.END, "─" * 60 + "\n\n")
+            # 绑定点击事件
+            self.tab_fields.tag_configure("msg_list", foreground="#1565C0")
+            self.tab_fields.tag_add("msg_list", list_start, list_end)
+            self.tab_fields.tag_bind("msg_list", "<Button-1>",
+                                     lambda e, r=result: self._on_message_list_click(e, r))
+            self.tab_fields.configure(cursor="hand2")
+
         if extract_fields and input_xml:
             parsed = xml_parser.extract_fields(input_xml, extract_fields)
             self.tab_fields.insert(tk.END, xml_parser.format_extracted(parsed))
         elif input_xml:
             self.tab_fields.insert(tk.END, "(该消息类型未配置 extract_fields)")
-        else:
-            self.tab_fields.insert(tk.END, "(无输入报文)")
 
+        # 输入 XML
         self.tab_input.delete("1.0", tk.END)
         self.tab_input.insert(tk.END, input_xml)
 
-        self.tab_output.delete("1.0", tk.END)
-        self.tab_output.insert(tk.END, result.get("output_xml", ""))
-
-        self.tab_vars.delete("1.0", tk.END)
-        self.tab_vars.insert(tk.END, result.get("variables", ""))
-
-        self.tab_response.delete("1.0", tk.END)
-        self.tab_response.insert(tk.END, result.get("response", ""))
-
+        # 错误
         self.tab_error.delete("1.0", tk.END)
-        self.tab_error.insert(tk.END, result.get("error", ""))
+        if error_detail:
+            self.tab_error.insert(tk.END, error_detail)
 
-        self.detail_frame.configure(text=f" 详情 - {result.get('channel_name', '')} ")
+        # 懒加载：输出 XML、变量、响应
+        self.tab_output.delete("1.0", tk.END)
+        self.tab_output.insert(tk.END, "加载中...")
+        self.tab_vars.delete("1.0", tk.END)
+        self.tab_vars.insert(tk.END, "加载中...")
+        self.tab_response.delete("1.0", tk.END)
+        self.tab_response.insert(tk.END, "加载中...")
+
+        threading.Thread(target=self._load_message_details,
+                         args=(result, msg_id), daemon=True).start()
+
+    def _on_message_list_click(self, event, result: dict):
+        try:
+            line = self.tab_fields.index(f"@{event.x},{event.y}").split(".")[0]
+            all_rows = result.get("all_rows", [])
+            # 第1行标题，第2行分隔线，第3行起是消息列表
+            idx = int(line) - 3
+            if 0 <= idx < len(all_rows):
+                self._show_message_detail(result, idx)
+        except (ValueError, IndexError):
+            pass
+
+    def _load_message_details(self, result: dict, msg_id: str):
+        ch_id = result["channel_id"]
+        next_ch_id = result.get("next_ch_id")
+        resp_var = result.get("resp_var")
+        resp_ct = result.get("resp_ct")
+        keyword = result.get("keyword")
+        time_str = result.get("time_str")
+        category = result.get("category", "")
+
+        output_xml = ""
+        variables = ""
+        response = ""
+
+        self._set_status("加载消息详情...")
+        try:
+            if next_ch_id:
+                next_sql = queries.sql_messages(next_ch_id, keyword, time_str, category)
+                next_rows = db.execute_query(next_sql)
+                if next_rows:
+                    output_xml = next_rows[0].get("raw_content", "")
+        except Exception:
+            pass
+
+        try:
+            vars_sql = queries.sql_variables(ch_id, msg_id)
+            vars_rows = db.execute_query(vars_sql)
+            if vars_rows:
+                variables = vars_rows[0].get("content", "")
+        except Exception:
+            pass
+
+        if resp_var:
+            try:
+                actual_ct = resp_ct if resp_ct else 11
+                resp_sql = queries.sql_response(ch_id, msg_id, resp_var, actual_ct)
+                resp_rows = db.execute_query(resp_sql)
+                if resp_rows:
+                    response = resp_rows[0].get("var_value", "")
+            except Exception:
+                pass
+
+        self.root.after(0, self._update_message_tabs, output_xml, variables, response)
+
+    def _update_message_tabs(self, output_xml: str, variables: str, response: str):
+        self.tab_output.delete("1.0", tk.END)
+        self.tab_output.insert(tk.END, output_xml)
+        self.tab_vars.delete("1.0", tk.END)
+        self.tab_vars.insert(tk.END, variables)
+        self.tab_response.delete("1.0", tk.END)
+        self.tab_response.insert(tk.END, response)
+        self._set_status("就绪")
 
     def _clear_detail(self):
-        for tab in [self.tab_fields, self.tab_input, self.tab_output, self.tab_vars, self.tab_response, self.tab_error]:
+        for tab in [self.tab_fields, self.tab_input, self.tab_output, self.tab_vars, self.tab_response, self.tab_error, self.tab_his]:
             tab.delete("1.0", tk.END)
         self.detail_frame.configure(text=" 详情 ")
 

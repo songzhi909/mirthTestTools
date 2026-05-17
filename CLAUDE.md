@@ -150,16 +150,20 @@ HIS (TJ001) --[ch81]--> TJ001_V3 生成 --[ch82]--> PACS 推送 --[ch173/338/...
 
 ```
 ├── app.py               # 主入口 + tkinter GUI
-├── db.py                # 数据库连接层（从 config.ini 读取配置）
-├── queries.py           # SQL 模板
-├── config.ini           # 数据库连接配置
-├── message_types.json   # 消息类型定义（可扩展）
+├── db.py                # MySQL 数据库连接层（Mirth 消息库）
+├── oracle_db.py         # Oracle 数据库连接层（HIS 预检）
+├── queries.py           # SQL 模板渲染
+├── xml_parser.py        # XML 字段提取
+├── logger.py            # 日志（文件 + GUI）
+├── config.ini           # 数据库连接配置（MySQL + Oracle）
+├── message_types.json   # 消息类型定义（可扩展，含 his_precheck）
+├── sql_templates.json   # MySQL SQL 模板（支持 {category} 变量）
 ```
 
 ### 运行
 
 ```bash
-pip install pymysql
+pip install pymysql oracledb
 python app.py
 ```
 
@@ -171,16 +175,54 @@ python app.py
 {
   "消息类型名称": {
     "code": "业务代码",
-    "keyword_field": "查询字段名",
-    "keyword_tag": "XML标签名",
-    "channels": {
-      "通道名称": {
-        "id": channel_id,
-        "table_suffix": "表后缀",
+    "query_fields": [
+      {"label": "显示名", "xml_tag": "XML标签", "required": true}
+    ],
+    "extract_fields": [
+      {"label": "显示名", "xpath": "XML路径"}
+    ],
+    "channels": [
+      {
+        "name": "通道名称",
+        "id": 81,
+        "table_suffix": "81",
         "response_var": "响应变量名(可选)",
         "response_content_type": 10
       }
+    ],
+    "his_precheck": {
+      "description": "HIS预检描述",
+      "keyword_field": "EXAM_NO",
+      "sql": "Oracle SQL，{keyword} 为申请单号占位符",
+      "status_field": "status",
+      "fail_message_field": "status_name",
+      "fields": [
+        {"key": "字段名", "label": "显示名"}
+      ]
     }
   }
 }
 ```
+
+`his_precheck` 为可选配置，用于在查询 Mirth 消息前先校验 HIS 数据库状态。不配置则跳过预检。
+
+### HIS 预检（Oracle）
+
+查询 Mirth 消息前自动执行 Oracle HIS 预检：
+- status=0 → 弹窗提示失败原因，中止后续查询
+- status=1 → 继续 Mirth 通道查询
+- 未查到记录 → 弹窗提示无数据，中止
+- 连接/SQL 错误 → 弹窗提示，中止
+
+Oracle 使用 `python-oracledb` thick 模式（兼容 Oracle 11g），Instant Client DLLs 已内置到打包产物。
+
+### SQL 模板变量
+
+`sql_templates.json` 中的 SQL 支持以下变量：
+
+| 变量 | 说明 |
+|------|------|
+| `{channel_id}` | Mirth Channel ID |
+| `{keyword}` | 查询关键字（业务单号） |
+| `{time}` | 时间范围起点 |
+| `{category}` | 消息类别（工具栏输入，可选） |

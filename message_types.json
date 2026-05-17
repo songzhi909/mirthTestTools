@@ -36,7 +36,21 @@
         "response_var": "resp",
         "response_content_type": 11
       }
-    ]
+    ],
+    "his_precheck": {
+      "description": "HIS检查申请状态预检",
+      "keyword_field": "EXAM_NO",
+      "sql": "select decode(visit_id, 0, '门诊', '住院') as type, exam_class, decode(visit_id, 0, decode(rcpt_no, null, '0', '1'), decode(verify_data_time, null, '0', '1')) as status, decode(visit_id, 0, decode(rcpt_no, null, '门诊未缴费', ''), decode(verify_data_time, null, '住院医嘱未校对', '')) as status_name, rcpt_no, verify_data_time from (select t.patient_id, t.visit_id, t.exam_class, t.rcpt_no, o.verify_data_time from exam_appoints t, orders o where t.exam_no = '{keyword}' and t.exam_no = o.app_no(+) union select t.patient_id, t.visit_id, t.exam_class, t.rcpt_no, o.verify_data_time from exam_master t, orders o where t.exam_no = '{keyword}' and t.exam_no = o.app_no(+))",
+      "status_field": "status",
+      "fail_message_field": "status_name",
+      "fields": [
+        {"key": "type", "label": "就诊类型"},
+        {"key": "exam_class", "label": "检查类别"},
+        {"key": "status_name", "label": "状态"},
+        {"key": "rcpt_no", "label": "收据号"},
+        {"key": "verify_data_time", "label": "校对时间"}
+      ]
+    }
   },
   "检验申请": {
     "code": "JY001",

@@ -24,7 +24,7 @@
         "use_category": true
       },
       {
-        "name": "TJ001_V3生成",
+        "name": "V3生成",
         "id": 82,
         "table_suffix": "82",
         "response_var": "tempPOOR_IN200901UV",
@@ -32,12 +32,32 @@
         "use_category": true
       },
       {
-        "name": "V3推送PACS",
-        "id": 338,
-        "table_suffix": "338",
-        "response_var": "resp",
-        "response_content_type": 11,
-        "use_category": false
+        "name": "推送",
+        "conditional": true,
+        "source_field": "exam_class",
+        "default_index": 3,
+        "options": [
+          {"values": ["心电图"], "name": "ECG_Sender", "id": 169, "table_suffix": "169", "use_category": false},
+          {"values": ["内镜中心"], "name": "ES_Sender", "id": 157, "table_suffix": "157", "use_category": false},
+          {"values": ["眼科特检室", "眼科眼光室"], "name": "OS_Sender", "id": 387, "table_suffix": "387", "use_category": false},
+          {"values": ["CT室", "放射科", "核磁室", "介入导管室"], "name": "PACS_LY_Sender", "id": 338, "table_suffix": "338", "use_category": false},
+          {"values": ["病理中心"], "name": "PIS_Sender", "id": 138, "table_suffix": "138", "use_category": false},
+          {"values": ["超声诊断中心"], "name": "US_Sender", "id": 111, "table_suffix": "111", "use_category": false}
+        ]
+      },
+      {
+        "name": "状态回写",
+        "id": 225,
+        "table_suffix": "225",
+        "use_category": false,
+        "dest_metadata_ids": [1]
+      },
+      {
+        "name": "报告回写",
+        "id": 18,
+        "table_suffix": "18",
+        "use_category": false,
+        "dest_metadata_ids": [1]
       }
     ],
     "his_precheck": {
@@ -56,16 +76,70 @@
     }
   },
   "检验申请": {
-    "code": "JY001",
+    "code": "TJ021",
     "query_fields": [
       {
-        "label": "检验申请号",
-        "xml_tag": "ORDER_NO",
+        "label": "申请号",
+        "xml_tag": "TEST_NO",
         "required": true
       }
     ],
-    "extract_fields": [],
-    "channels": []
+    "extract_fields": [
+      {"label": "事件类型", "xpath": "EventType"},
+      {"label": "系统名称", "xpath": "SystemName"},
+      {"label": "操作类型", "xpath": "ListInfo/ActionType"},
+      {"label": "申请号", "xpath": "ListInfo/ListRow/LAB_TEST_MASTER/PriKeyList/TEST_NO"}
+    ],
+    "channels": [
+      {
+        "name": "HIS消息推送",
+        "id": 81,
+        "table_suffix": "81",
+        "use_category": true
+      },
+      {
+        "name": "V3生成",
+        "id": 392,
+        "table_suffix": "392",
+        "response_var": "tempPOOR_IN200901UV",
+        "response_content_type": 10,
+        "use_category": true
+      },
+      {
+        "name": "推送",
+        "id": 143,
+        "table_suffix": "143",
+        "use_category": false
+      },
+      {
+        "name": "状态回写",
+        "id": 88,
+        "table_suffix": "88",
+        "use_category": false,
+        "dest_metadata_ids": [1]
+      },
+      {
+        "name": "报告回写",
+        "id": 32,
+        "table_suffix": "32",
+        "use_category": false,
+        "dest_metadata_ids": [1]
+      }
+    ],
+    "his_precheck": {
+      "description": "HIS检验申请状态预检",
+      "keyword_field": "TEST_NO",
+      "sql": "select decode(visit_id, 0, '门诊', '住院') as type,       decode(visit_id,  0, decode(rcpt_no, null, '0', '1'), decode(verify_data_time, null, '0', '1')) as status,       decode(visit_id, 0, decode(rcpt_no, null, '门诊未缴费', ''), decode(verify_data_time, null, '住院医嘱未校对', '')) as status_name,       rcpt_no,       verify_data_time  from (select t.patient_id, t.visit_id, t.rcpt_no, o.verify_data_time          from lab_test_master t, orders o         where t.test_no = '{keyword}'           and t.test_no = o.app_no(+) )",
+      "status_field": "status",
+      "fail_message_field": "status_name",
+      "fields": [
+        {"key": "type", "label": "就诊类型"},
+        {"key": "exam_class", "label": "检查类别"},
+        {"key": "status_name", "label": "状态"},
+        {"key": "rcpt_no", "label": "收据号"},
+        {"key": "verify_data_time", "label": "校对时间"}
+      ]
+    }
   },
   "处置申请": {
     "code": "CZ001",

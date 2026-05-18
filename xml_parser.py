@@ -72,6 +72,38 @@ def _find_text(root: ET.Element, xpath: str) -> Optional[str]:
     return None
 
 
+def parse_variables_map(xml_str: str) -> list[dict]:
+    """解析 <map><entry><string>key</string><string>value</string></entry>...</map> 格式。
+
+    Returns:
+        [{"key": "...", "value": "..."}]
+    """
+    if not xml_str:
+        return []
+    root = _parse_xml(xml_str)
+    if root is None:
+        return []
+    results = []
+    for entry in root.iter("entry"):
+        strings = entry.findall("string")
+        if len(strings) >= 2:
+            key = strings[0].text or ""
+            value = strings[1].text or ""
+            results.append({"key": key.strip(), "value": value.strip()})
+    return results
+
+
+def format_variables(pairs: list[dict]) -> str:
+    """将变量键值对格式化为可读文本。"""
+    if not pairs:
+        return ""
+    max_key = max(len(p["key"]) for p in pairs) if pairs else 0
+    lines = []
+    for p in pairs:
+        lines.append(f"{p['key']:<{max_key}} : {p['value']}")
+    return "\n".join(lines)
+
+
 def format_extracted(fields: list[dict]) -> str:
     """将提取结果格式化为可读文本。"""
     if not fields:

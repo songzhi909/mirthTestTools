@@ -22,5 +22,9 @@
   "variables": {
     "description": "查询 channel 变量原始内容 (content_type = 10)",
     "sql": "SELECT content FROM mirth_data.d_mc{channel_id} WHERE message_id = '{message_id}' AND content_type = 10"
+  },
+  "dest_responses": {
+    "description": "查询 destination 响应报文 (content_type = 6)",
+    "sql": "SELECT resp.message_id AS message_id, resp.metadata_id AS metadata_id, resp.content AS response_content FROM mirth_data.d_mc{channel_id} resp WHERE resp.content_type = 6 {metadata_filter} AND resp.message_id IN (SELECT message_id FROM mirth_data.d_mc{channel_id} WHERE content LIKE '%{keyword}%' AND content_type = 1) AND resp.message_id IN (SELECT m.id FROM mirth_data.d_m{channel_id} m WHERE m.RECEIVED_DATE > '{time}') ORDER BY resp.message_id DESC, resp.metadata_id"
   }
 }

@@ -454,6 +454,22 @@ class MirthTestApp:
                              "有" if result["has_input"] else "无",
                              "有" if result["has_output"] else "无")
 
+            # 未查到数据时，跳过后续通道
+            if not result["all_rows"]:
+                self._logger.info("通道 【%s】 无数据，跳过后续通道", ch_name)
+                for j in range(i + 1, len(channels)):
+                    skip_name = channels[j]["name"]
+                    skip_result = {
+                        "channel_name": skip_name,
+                        "channel_id": channels[j]["id"],
+                        "all_rows": [], "current_index": 0,
+                        "has_input": False, "has_output": False,
+                        "status": "empty", "keyword": keyword, "time_str": time_str,
+                    }
+                    self._current_results[skip_name] = skip_result
+                    self.root.after(0, self._update_panel, skip_name, skip_result)
+                break
+
         self._logger.info("全部查询完成")
         self._set_status("查询完成")
 

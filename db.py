@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import sys
+import time
 from pathlib import Path
 
 import pymysql
@@ -9,6 +10,8 @@ import pymysql.cursors
 from pymysql._auth import scramble_native_password
 
 from logger import get_logger
+
+SLOW_QUERY_THRESHOLD = 3.0  # 秒
 
 
 class _NativeAuthPlugin:
@@ -65,11 +68,16 @@ def execute_query(sql: str) -> list[dict]:
     log.info("执行SQL: %s", sql)
     conn = get_connection()
     try:
+        t0 = time.time()
         with conn.cursor() as cur:
             cur.execute(sql)
             rows = cur.fetchall()
-            log.info("查询返回 %d 条记录", len(rows))
-            return rows
+        elapsed = time.time() - t0
+        if elapsed >= SLOW_QUERY_THRESHOLD:
+            log.warning("⚠ SLOW SQL [%.2fs]: %s", elapsed, sql)
+        else:
+            log.info("查询返回 %d 条记录 (%.2fs)", len(rows), elapsed)
+        return rows
     except Exception as e:
         log.error("SQL执行失败: %s", e)
         raise

@@ -11,7 +11,14 @@ from pymysql._auth import scramble_native_password
 
 from logger import get_logger
 
-SLOW_QUERY_THRESHOLD = 3.0  # 秒
+
+def _load_slow_threshold() -> float:
+    cfg = configparser.ConfigParser()
+    cfg.read(_config_path, encoding="utf-8")
+    try:
+        return cfg.getfloat("settings", "slow_query_threshold", fallback=3.0)
+    except (configparser.NoSectionError, ValueError):
+        return 3.0
 
 
 class _NativeAuthPlugin:
@@ -73,7 +80,8 @@ def execute_query(sql: str) -> list[dict]:
             cur.execute(sql)
             rows = cur.fetchall()
         elapsed = time.time() - t0
-        if elapsed >= SLOW_QUERY_THRESHOLD:
+        threshold = _load_slow_threshold()
+        if elapsed >= threshold:
             log.warning("⚠ SLOW SQL [%.2fs]: %s", elapsed, sql)
         else:
             log.info("查询返回 %d 条记录 (%.2fs)", len(rows), elapsed)

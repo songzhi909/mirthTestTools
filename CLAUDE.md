@@ -190,6 +190,10 @@ python app.py
         "response_content_type": 10
       }
     ],
+    "flow": {
+      "sequential": true,
+      "stop_on_empty": true
+    },
     "his_precheck": {
       "description": "HIS预检描述",
       "keyword_field": "EXAM_NO",
@@ -205,6 +209,13 @@ python app.py
 ```
 
 `his_precheck` 为可选配置，用于在查询 Mirth 消息前先校验 HIS 数据库状态。不配置则跳过预检。
+
+`flow` 为可选配置，控制通道查询流程行为。不配置时默认 `{"sequential": true, "stop_on_empty": true}`。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `sequential` | bool | `true` | 是否依次查询（预留字段，当前仅支持依次查询） |
+| `stop_on_empty` | bool | `true` | 查询不到数据时，是否停止后续通道查询 |
 
 ### HIS 预检（Oracle）
 

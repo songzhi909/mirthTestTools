@@ -1,6 +1,10 @@
 {
   "检查申请新增": {
     "code": "TJ001",
+    "flow": {
+      "sequential": true,
+      "stop_on_empty": true
+    },
     "query_fields": [
       {
         "label": "检查申请号",
@@ -77,6 +81,10 @@
   },
   "检验申请": {
     "code": "TJ021",
+    "flow": {
+      "sequential": true,
+      "stop_on_empty": true
+    },
     "query_fields": [
       {
         "label": "申请号",
@@ -99,8 +107,8 @@
       },
       {
         "name": "V3生成",
-        "id": 392,
-        "table_suffix": "392",
+        "id": 393,
+        "table_suffix": "393",
         "response_var": "tempPOOR_IN200901UV",
         "response_content_type": 10,
         "use_category": true
@@ -116,7 +124,7 @@
         "id": 88,
         "table_suffix": "88",
         "use_category": false,
-        "dest_metadata_ids": [1]
+        "dest_metadata_ids": [2,5]
       },
       {
         "name": "报告回写",
@@ -141,8 +149,64 @@
       ]
     }
   },
+  "住院流程": {
+    "code": "TJ161",
+    "flow": {
+      "sequential": true,
+      "stop_on_empty": false
+    },
+    "query_fields": [
+      {
+        "label": "病人ID",
+        "xml_tag": "PATIENT_ID",
+        "required": true
+      }
+    ],
+    "extract_fields": [
+      {"label": "事件类型", "xpath": "EventType"},
+      {"label": "系统名称", "xpath": "SystemName"},
+      {"label": "操作类型", "xpath": "ListInfo/ActionType"},
+      {"label": "病人ID", "xpath": "ListInfo/ListRow/PATS_IN_HOSPITAL/PriKeyList/PATIENT_ID"}
+    ],
+    "channels": [
+      {
+        "name": "HIS消息推送",
+        "id": 81,
+        "table_suffix": "81",
+        "use_category": true
+      },
+      {
+        "name": "TJ151_V3",
+        "id": 149,
+        "table_suffix": "149",
+        "use_category": true
+      },
+      {
+        "name": "TJ161_V3",
+        "id": 61,
+        "table_suffix": "61",
+        "use_category": true
+      },
+      {
+        "name": "TJ171",
+        "id": 65,
+        "table_suffix": "65",
+        "use_category": true
+      },
+      {
+        "name": "推送",
+        "id": 323,
+        "table_suffix": "323",
+        "use_category": false
+      }
+    ] 
+  },
   "处置申请": {
     "code": "CZ001",
+    "flow": {
+      "sequential": true,
+      "stop_on_empty": true
+    },
     "query_fields": [
       {
         "label": "处置申请号",

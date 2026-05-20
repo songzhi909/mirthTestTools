@@ -340,6 +340,8 @@ class MirthTestApp:
         type_name = self.type_var.get()
         mt = self.msg_types.get(type_name, {})
         his_config = mt.get("his_precheck")
+        flow_config = mt.get("flow", {})
+        stop_on_empty = flow_config.get("stop_on_empty", True)
         has_precheck = bool(his_config and oracle_db)
         total_steps = (1 if has_precheck else 0) + len(channels)
         step = 0
@@ -454,8 +456,8 @@ class MirthTestApp:
                              "有" if result["has_input"] else "无",
                              "有" if result["has_output"] else "无")
 
-            # 未查到数据时，跳过后续通道
-            if not result["all_rows"]:
+            # 未查到数据时，根据 flow 配置决定是否跳过后续通道
+            if not result["all_rows"] and stop_on_empty:
                 self._logger.info("通道 【%s】 无数据，跳过后续通道", ch_name)
                 for j in range(i + 1, len(channels)):
                     skip_name = channels[j]["name"]
@@ -469,6 +471,8 @@ class MirthTestApp:
                     self._current_results[skip_name] = skip_result
                     self.root.after(0, self._update_panel, skip_name, skip_result)
                 break
+            elif not result["all_rows"]:
+                self._logger.info("通道 【%s】 无数据，继续查询后续通道 (stop_on_empty=false)", ch_name)
 
         self._logger.info("全部查询完成")
         self._set_status("查询完成")
